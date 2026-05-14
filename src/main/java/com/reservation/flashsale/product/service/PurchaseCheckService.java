@@ -25,16 +25,21 @@ public class PurchaseCheckService {
      */
     public boolean checkAndAdd(Long productId, Long memberId) {
         String key = PURCHASED_KEY_PREFIX + productId;
-        // SADD는 Set에 추가 성공 시 1, 이미 존재하면 0을 반환함
-        Long result = redisTemplate.opsForSet().add(key, String.valueOf(memberId));
-        
-        if (result != null && result > 0) {
-            log.info("[PurchaseCheck] 1인 1건 통과 (추가됨): productId={}, memberId={}", productId, memberId);
-            return true;
-        }
+        try {
+            // SADD는 Set에 추가 성공 시 1, 이미 존재하면 0을 반환함
+            Long result = redisTemplate.opsForSet().add(key, String.valueOf(memberId));
+            
+            if (result != null && result > 0) {
+                log.info("[PurchaseCheck] 1인 1건 통과 (추가됨): productId={}, memberId={}", productId, memberId);
+                return true;
+            }
 
-        log.warn("[PurchaseCheck] 이미 구매 이력 존재 (차단): productId={}, memberId={}", productId, memberId);
-        return false;
+            log.warn("[PurchaseCheck] 이미 구매 이력 존재 (차단): productId={}, memberId={}", productId, memberId);
+            return false;
+        } catch (Exception e) {
+            log.warn("[Redis Fallback] Redis 장애 발생. 1인 1매 검증을 DB Unique Constraint로 우회합니다. productId={}, memberId={}", productId, memberId, e);
+            return true; // 에러 무시하고 통과시킴 (DB 에러가 차단할 것)
+        }
     }
 
     /**

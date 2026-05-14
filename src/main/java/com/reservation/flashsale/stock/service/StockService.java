@@ -72,18 +72,23 @@ public class StockService {
      */
     public boolean decreaseStock(Long productId) {
         String key = STOCK_KEY_PREFIX + productId;
-        Long remaining = redisTemplate.opsForValue().decrement(key);
+        try {
+            Long remaining = redisTemplate.opsForValue().decrement(key);
 
-        if (remaining == null || remaining < 0) {
-            log.info("[Redis] 재고 소진: productId={}", productId);
-            // 0 미만으로 떨어지면 품절이므로 다시 증가시켜 복원
-            if (remaining != null) {
-                redisTemplate.opsForValue().increment(key);
+            if (remaining == null || remaining < 0) {
+                log.info("[Redis] 재고 소진: productId={}", productId);
+                // 0 미만으로 떨어지면 품절이므로 다시 증가시켜 복원
+                if (remaining != null) {
+                    redisTemplate.opsForValue().increment(key);
+                }
+                return false;
             }
-            return false;
-        }
 
-        return true;
+            return true;
+        } catch (Exception e) {
+            log.warn("[Redis Fallback] Redis 장애 발생. 재고 차감을 DB에 위임합니다. productId={}", productId, e);
+            return true; // 무조건 통과시키고 DB의 벌크 업데이트 검증(WHERE remaining > 0)에 위임
+        }
     }
 
     /**
@@ -91,8 +96,12 @@ public class StockService {
      */
     public void restoreStock(Long productId) {
         String key = STOCK_KEY_PREFIX + productId;
-        redisTemplate.opsForValue().increment(key);
-        log.info("[Redis] 재고 복구 완료: productId={}", productId);
+        try {
+            redisTemplate.opsForValue().increment(key);
+            log.info("[Redis] 재고 복구 완료: productId={}", productId);
+        } catch (Exception e) {
+            log.warn("[Redis Fallback] Redis 장애 발생. 재고 복구(INCR)를 건너뜁니다. productId={}", productId, e);
+        }
     }
 
     /**

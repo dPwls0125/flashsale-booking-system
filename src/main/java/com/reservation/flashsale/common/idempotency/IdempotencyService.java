@@ -29,17 +29,22 @@ public class IdempotencyService {
      */
     public boolean checkAndSetProcessing(String idempotencyKey) {
         String key = IDEMPOTENCY_KEY_PREFIX + idempotencyKey;
-        // 키가 없을 때만 PROCESSING 세팅. TTL은 30분으로 설정.
-        Boolean success = redisTemplate.opsForValue().setIfAbsent(key, STATUS_PROCESSING, Duration.ofMinutes(30));
-        
-        if (Boolean.FALSE.equals(success)) {
-            String currentStatus = redisTemplate.opsForValue().get(key);
-            log.warn("[Idempotency] 중복 요청 감지: key={}, status={}", idempotencyKey, currentStatus);
-            return false;
+        try {
+            // 키가 없을 때만 PROCESSING 세팅. TTL은 30분으로 설정.
+            Boolean success = redisTemplate.opsForValue().setIfAbsent(key, STATUS_PROCESSING, Duration.ofMinutes(30));
+            
+            if (Boolean.FALSE.equals(success)) {
+                String currentStatus = redisTemplate.opsForValue().get(key);
+                log.warn("[Idempotency] 중복 요청 감지: key={}, status={}", idempotencyKey, currentStatus);
+                return false;
+            }
+            
+            log.info("[Idempotency] 새 요청 처리 시작: key={}", idempotencyKey);
+            return true;
+        } catch (Exception e) {
+            log.warn("[Redis Fallback] Redis 장애 발생. 멱등성 검증을 DB Unique Constraint로 우회합니다. key={}", idempotencyKey, e);
+            return true; // 에러 무시하고 통과시킴 (DB 에러가 차단할 것)
         }
-        
-        log.info("[Idempotency] 새 요청 처리 시작: key={}", idempotencyKey);
-        return true;
     }
 
     /**
