@@ -17,7 +17,48 @@
 
 ---
 
-## 2. 시퀀스 다이어그램: Booking API (선착순 처리)
+## 2. 시퀀스 다이어그램
+
+### Checkout API (주문서 진입)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User
+    participant Controller as CheckoutController
+    participant Cache as Caffeine(Product)
+    participant Redis as Redis(Stock)
+    participant DB as MySQL(Product/Member)
+
+    User->>Controller: GET /api/checkout/{productId} (X-Member-Id 헤더)
+
+    Controller->>Cache: 상품 정보 조회 (productId)
+    alt 캐시 히트 (30s TTL)
+        Cache-->>Controller: Product (캐시)
+    else 캐시 미스
+        Cache->>DB: SELECT product
+        DB-->>Cache: Product
+        Cache-->>Controller: Product (DB)
+    end
+
+    Controller->>Redis: 재고 수량 조회 (GET stock:product:{id})
+    alt Redis 히트
+        Redis-->>Controller: remainingStock
+    else Redis 미스 또는 장애
+        Redis->>DB: SELECT product_stock
+        DB-->>Redis: remainingStock
+        Redis-->>Controller: remainingStock (DB fallback)
+    end
+
+    Controller->>DB: 회원 포인트 조회 (SELECT member)
+    DB-->>Controller: pointBalance
+
+    Controller-->>User: 200 OK (상품정보 + 재고 + 포인트)
+```
+
+---
+
+### Booking API (선착순 처리)
 
 ```mermaid
 sequenceDiagram
