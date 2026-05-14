@@ -35,6 +35,21 @@
 - **중복 구매 방지**: Redis Set(`SADD purchased:product:{id}`)에 memberId를 추가하여 한 회원이 여러 번 선착순에 성공하는 것을 차단합니다. DB의 `(member_id, product_id)` 복합 유니크 제약 조건이 Redis 장애 시 최종 안전망 역할을 합니다.
 - **중복 요청(멱등성) 처리**: `IdempotencyService`가 Redis `SETNX`로 `idempotency:{key}` 키를 세팅하여 동일 요청의 중복 처리를 1차 차단합니다. Redis 장애 시에는 DB의 `idempotency_key` 유니크 제약 조건이 fallback으로 동작합니다. 처리 성공 시 상태를 `COMPLETED`로 변경하고, 롤백 시 키를 삭제하여 클라이언트의 재시도를 허용합니다.
 
-## 5. 인프라 장애 대응 전략
+## 5. Redis 고가용성(HA) 구성: Sentinel vs Cluster
+
+Redis 장애 시 서비스 중단을 막기 위해 HA 구성이 필요했고, 두 가지 방안을 검토했습니다.
+
+| 항목 | Redis Sentinel | Redis Cluster |
+|---|---|---|
+| 구성 | Master 1 + Replica N + Sentinel N | Master 최소 3 + Replica 각 1 권장 |
+| 데이터 분산 | 없음 (단일 Master에 집중) | 16,384 슬롯으로 샤딩 |
+| Failover | Sentinel 프로세스가 감지 후 Replica 승격 | 내장 자동 Failover |
+| 운영 복잡도 | 낮음 | 높음 (슬롯 리밸런싱 등) |
+| 적합한 규모 | 소규모 데이터, 단일 Master 허용 | 대규모 데이터, 수평 확장 필요 시 |
+
+- **결정**: Redis Sentinel 채택 (Master 1 + Replica 2 + Sentinel 3 구성)
+- **근거**: 본 시스템은 상품 수가 적고(1개 한정 상품) 데이터 샤딩이 불필요합니다. Cluster는 최소 Master 3개가 필요해 구성 비용 대비 실익이 없습니다. Sentinel만으로도 Master 장애 시 자동 Failover를 보장할 수 있으며, 구성과 운영이 단순하여 과제 범위에 적합하다고 판단했습니다.
+
+## 6. 인프라 장애 대응 전략
 - **Redis 장애 시 (Fallback)**: Redis 연결 실패 시 예외를 무시하고 요청을 DB로 직접 전달합니다.
 - **근거**: 서비스 전체가 중단되는 것보다 성능이 저하된 상태로 서비스를 유지하는 것이 낫다고 판단했습니다. DB 레이어의 원자적 업데이트가 최종 정합성을 보장하고 있으므로 가능합니다.
