@@ -14,6 +14,15 @@ public class BookingController {
 
     private final BookingFacadeService bookingFacadeService;
 
+    @GetMapping("/checkout/{productId}")
+    public ResponseEntity<BookingResponse> getCheckout(
+            @PathVariable Long productId,
+            @RequestHeader("X-Member-Id") Long memberId) {
+
+        BookingResponse response = bookingFacadeService.getCheckoutInfo(productId, memberId);
+        return ResponseEntity.ok(response);
+    }
+
     @PostMapping("/{productId}")
     public ResponseEntity<BookingResponse> createBooking(
             @PathVariable Long productId,

@@ -8,7 +8,7 @@ services:
     image: mysql:8.0
     container_name: flashsale-mysql
     ports:
-      - "3306:3306"
+      - "13306:3306"
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: flashsale
@@ -25,7 +25,7 @@ services:
   # Redis Sentinel Cluster (Master 1, Replica 2, Sentinel 3)
   # ==========================================
   redis-master:
-    image: bitnami/redis:7.2
+    image: bitnami/redis:latest
     container_name: redis-master
     ports:
       - "6379:6379"
@@ -39,7 +39,7 @@ services:
       retries: 3
 
   redis-replica-1:
-    image: bitnami/redis:7.2
+    image: bitnami/redis:latest
     container_name: redis-replica-1
     ports:
       - "6380:6379"
@@ -52,7 +52,7 @@ services:
       - ALLOW_EMPTY_PASSWORD=yes
 
   redis-replica-2:
-    image: bitnami/redis:7.2
+    image: bitnami/redis:latest
     container_name: redis-replica-2
     ports:
       - "6381:6379"
@@ -65,7 +65,7 @@ services:
       - ALLOW_EMPTY_PASSWORD=yes
 
   redis-sentinel-1:
-    image: bitnami/redis-sentinel:7.2
+    image: bitnami/redis-sentinel:latest
     container_name: redis-sentinel-1
     ports:
       - "26379:26379"
@@ -80,7 +80,7 @@ services:
       - REDIS_SENTINEL_FAILOVER_TIMEOUT=10000
 
   redis-sentinel-2:
-    image: bitnami/redis-sentinel:7.2
+    image: bitnami/redis-sentinel:latest
     container_name: redis-sentinel-2
     ports:
       - "26380:26379"
@@ -95,7 +95,7 @@ services:
       - REDIS_SENTINEL_FAILOVER_TIMEOUT=10000
 
   redis-sentinel-3:
-    image: bitnami/redis-sentinel:7.2
+    image: bitnami/redis-sentinel:latest
     container_name: redis-sentinel-3
     ports:
       - "26381:26379"
@@ -108,3 +108,20 @@ services:
       - REDIS_SENTINEL_QUORUM=2
       - REDIS_SENTINEL_DOWN_AFTER_MILLISECONDS=3000
       - REDIS_SENTINEL_FAILOVER_TIMEOUT=10000
+
+  # ==========================================
+  # Spring Boot Application
+  # ==========================================
+  flashsale-app:
+    build: .
+    container_name: flashsale-app
+    ports:
+      - "8080:8080"
+    depends_on:
+      redis-sentinel-1:
+        condition: service_started
+      mysql:
+        condition: service_healthy
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/flashsale?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+      - SPRING_DATA_REDIS_SENTINEL_NODES=redis-sentinel-1:26379,redis-sentinel-2:26379,redis-sentinel-3:26379

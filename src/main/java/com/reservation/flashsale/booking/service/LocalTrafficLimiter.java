@@ -43,6 +43,7 @@ public class LocalTrafficLimiter {
 
         int remaining = counter.decrementAndGet();
         if (remaining < 0) {
+            counter.incrementAndGet(); // 음수가 되면 다시 원복하여 카운터가 무한히 내려가는 것을 방지 (Leak 방지)
             log.info("[LocalLimit] 로컬 카운터 소진 (차단): productId={}", productId);
             return false;
         }
