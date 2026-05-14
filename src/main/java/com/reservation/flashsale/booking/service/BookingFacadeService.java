@@ -4,6 +4,8 @@ import com.reservation.flashsale.booking.dto.BookingRequest;
 import com.reservation.flashsale.booking.dto.BookingResponse;
 import com.reservation.flashsale.booking.entity.Booking;
 import com.reservation.flashsale.booking.repository.BookingRepository;
+import com.reservation.flashsale.common.exception.BusinessException;
+import com.reservation.flashsale.common.exception.ErrorCode;
 import com.reservation.flashsale.common.idempotency.IdempotencyService;
 import com.reservation.flashsale.payment.entity.Payment;
 import com.reservation.flashsale.payment.entity.PaymentMethod;
@@ -47,7 +49,7 @@ public class BookingFacadeService {
         
         // 1. 로컬 트래픽 제한 (Fail-Fast)
         if (!localTrafficLimiter.tryAcquire(productId)) {
-            throw new IllegalStateException("상품이 품절되었습니다. (로컬 차단)");
+            throw new BusinessException(ErrorCode.SOLD_OUT, "상품이 품절되었습니다. (로컬 차단)");
         }
 
         // 보상 트랜잭션을 위한 상태 플래그
@@ -60,19 +62,19 @@ public class BookingFacadeService {
         try {
             // 2. 멱등성 체크
             if (!idempotencyService.checkAndSetProcessing(idempotencyKey)) {
-                throw new IllegalStateException("이미 처리 중이거나 완료된 주문입니다.");
+                throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT);
             }
             idempotencySet = true;
 
             // 3. 1인 1건 체크
             if (!purchaseCheckService.checkAndAdd(productId, memberId)) {
-                throw new IllegalStateException("이미 이 상품을 구매하셨습니다.");
+                throw new BusinessException(ErrorCode.DUPLICATE_BOOKING);
             }
             purchaseChecked = true;
 
             // 4. Redis 재고 차감
             if (!stockService.decreaseStock(productId)) {
-                throw new IllegalStateException("상품이 품절되었습니다. (Redis 재고 부족)");
+                throw new BusinessException(ErrorCode.SOLD_OUT, "상품이 품절되었습니다. (Redis 재고 부족)");
             }
             stockDecreased = true;
 
@@ -95,7 +97,7 @@ public class BookingFacadeService {
                 PaymentResult result = strategy.pay(context);
                 if (!result.success()) {
                     log.error("결제 실패: 수단={}, 에러={}", method, result.errorMessage());
-                    throw new IllegalStateException("결제 실패: " + result.errorMessage());
+                    throw new BusinessException(ErrorCode.PAYMENT_FAILED, "결제 실패: " + result.errorMessage());
                 }
                 
                 successfulPayments.add(result);

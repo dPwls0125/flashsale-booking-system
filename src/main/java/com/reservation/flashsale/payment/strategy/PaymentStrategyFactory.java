@@ -1,5 +1,7 @@
 package com.reservation.flashsale.payment.strategy;
 
+import com.reservation.flashsale.common.exception.BusinessException;
+import com.reservation.flashsale.common.exception.ErrorCode;
 import com.reservation.flashsale.payment.entity.PaymentMethod;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -44,7 +46,7 @@ public class PaymentStrategyFactory {
             if (incompatible != null) {
                 for (PaymentMethod other : methods) {
                     if (incompatible.contains(other)) {
-                        throw new IllegalArgumentException(
+                        throw new BusinessException(ErrorCode.INVALID_PAYMENT_COMBINATION, 
                                 "결제 수단 조합이 유효하지 않습니다: " + method + "와 " + other + "는 함께 사용할 수 없습니다.");
                     }
                 }

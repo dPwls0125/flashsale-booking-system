@@ -1,6 +1,8 @@
 package com.reservation.flashsale.stock.service;
 
 import com.reservation.flashsale.booking.service.LocalTrafficLimiter;
+import com.reservation.flashsale.common.exception.BusinessException;
+import com.reservation.flashsale.common.exception.ErrorCode;
 import com.reservation.flashsale.stock.entity.ProductStock;
 import com.reservation.flashsale.stock.repository.ProductStockRepository;
 import lombok.RequiredArgsConstructor;
@@ -100,7 +102,7 @@ public class StockService {
     public void decreaseDbStock(Long productId) {
         int updated = productStockRepository.decreaseStock(productId);
         if (updated == 0) {
-            throw new IllegalStateException("상품이 품절되었습니다. (DB 재고 부족)");
+            throw new BusinessException(ErrorCode.SOLD_OUT, "상품이 품절되었습니다. (DB 재고 부족)");
         }
     }
 }
