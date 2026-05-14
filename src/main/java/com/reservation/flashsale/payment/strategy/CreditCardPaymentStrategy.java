@@ -27,7 +27,7 @@ public class CreditCardPaymentStrategy implements PaymentStrategy {
         PgPaymentResponse response = pgClient.confirm(request);
 
         if (response.isSuccess()) {
-            return PaymentResult.success(response.paymentKey());
+            return PaymentResult.success(response.paymentKey(), context.amount());
         }
 
         return PaymentResult.fail(

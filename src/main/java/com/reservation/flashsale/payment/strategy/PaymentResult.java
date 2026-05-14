@@ -11,15 +11,16 @@ package com.reservation.flashsale.payment.strategy;
 public record PaymentResult(
         boolean success,
         String pgTransactionId,
+        int amount,
         String errorCode,
         String errorMessage
 ) {
 
-    public static PaymentResult success(String pgTransactionId) {
-        return new PaymentResult(true, pgTransactionId, null, null);
+    public static PaymentResult success(String pgTransactionId, int amount) {
+        return new PaymentResult(true, pgTransactionId, amount, null, null);
     }
 
     public static PaymentResult fail(String errorCode, String errorMessage) {
-        return new PaymentResult(false, null, errorCode, errorMessage);
+        return new PaymentResult(false, null, 0, errorCode, errorMessage);
     }
 }

@@ -1,5 +1,6 @@
 package com.reservation.flashsale.stock.service;
 
+import com.reservation.flashsale.booking.service.LocalTrafficLimiter;
 import com.reservation.flashsale.stock.entity.ProductStock;
 import com.reservation.flashsale.stock.repository.ProductStockRepository;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,7 @@ public class StockService {
 
     private final StringRedisTemplate redisTemplate;
     private final ProductStockRepository productStockRepository;
+    private final LocalTrafficLimiter localTrafficLimiter;
 
     /**
      * 재고 수량 조회.
@@ -41,7 +43,7 @@ public class StockService {
     }
 
     /**
-     * 애플리케이션 시작 시 전체 상품 재고를 Redis에 로드한다.
+     * 애플리케이션 시작 시 전체 상품 재고를 Redis와 Local 카운터에 로드한다.
      * SETNX를 사용하여, 이미 값이 있으면 덮어쓰지 않는다.
      */
     @Transactional(readOnly = true)
@@ -51,10 +53,54 @@ public class StockService {
             String key = STOCK_KEY_PREFIX + stock.getProductId();
             Boolean wasSet = redisTemplate.opsForValue().setIfAbsent(key, String.valueOf(stock.getRemainingQuantity()));
             if (Boolean.TRUE.equals(wasSet)) {
-                log.info("재고 초기화 완료: productId={}, quantity={}", stock.getProductId(), stock.getRemainingQuantity());
+                log.info("Redis 재고 초기화 완료: productId={}, quantity={}", stock.getProductId(), stock.getRemainingQuantity());
             } else {
-                log.info("재고 이미 존재 (SKIP): productId={}", stock.getProductId());
+                log.info("Redis 재고 이미 존재 (SKIP): productId={}", stock.getProductId());
             }
+            
+            // 로컬 트래픽 제한기 초기화
+            localTrafficLimiter.initializeStock(stock.getProductId(), stock.getRemainingQuantity());
+        }
+    }
+
+    /**
+     * Redis에서 재고를 1 차감한다. (DECR)
+     * 차감 결과가 0 미만이면 품절이므로 복구(INCR)하고 false를 반환한다.
+     * 결과가 0 이상이면 차감 성공이다 (0이면 마지막 남은 1개를 구매한 것).
+     */
+    public boolean decreaseStock(Long productId) {
+        String key = STOCK_KEY_PREFIX + productId;
+        Long remaining = redisTemplate.opsForValue().decrement(key);
+
+        if (remaining == null || remaining < 0) {
+            log.info("[Redis] 재고 소진: productId={}", productId);
+            // 0 미만으로 떨어지면 품절이므로 다시 증가시켜 복원
+            if (remaining != null) {
+                redisTemplate.opsForValue().increment(key);
+            }
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * 결제 실패 등의 이유로 Redis 재고를 복구한다. (INCR)
+     */
+    public void restoreStock(Long productId) {
+        String key = STOCK_KEY_PREFIX + productId;
+        redisTemplate.opsForValue().increment(key);
+        log.info("[Redis] 재고 복구 완료: productId={}", productId);
+    }
+
+    /**
+     * 최종 예약 확정 시 DB 재고를 1 차감한다.
+     */
+    @Transactional
+    public void decreaseDbStock(Long productId) {
+        int updated = productStockRepository.decreaseStock(productId);
+        if (updated == 0) {
+            throw new IllegalStateException("상품이 품절되었습니다. (DB 재고 부족)");
         }
     }
 }

@@ -25,7 +25,7 @@ public class YPointPaymentStrategy implements PaymentStrategy {
         try {
             member.deductPoints(context.amount());
             memberRepository.save(member);
-            return PaymentResult.success(null); // PG 거래 키 없음
+            return PaymentResult.success(null, context.amount()); // PG 거래 키 없음
         } catch (IllegalStateException e) {
             return PaymentResult.fail("INSUFFICIENT_POINT", e.getMessage());
         }
