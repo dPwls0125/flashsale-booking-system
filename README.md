@@ -193,13 +193,15 @@ docker-compose up -d mysql redis-master redis-replica-1 redis-replica-2 redis-se
 
 **주문서 조회**
 ```bash
-curl http://localhost:8080/api/booking/checkout/1?memberId=1
+curl http://localhost:8080/api/booking/checkout/1 \
+  -H "X-Member-Id: 1"
 ```
 
 **예약 실행**
 ```bash
 curl -X POST http://localhost:8080/api/booking/1 \
   -H "Content-Type: application/json" \
+  -H "X-Member-Id: 1" \
   -H "Idempotency-Key: $(uuidgen)" \
-  -d '{"memberId": 1, "paymentMethods": ["CREDIT_CARD"]}'
+  -d '{"paymentMethods": ["CREDIT_CARD"]}'
 ```
