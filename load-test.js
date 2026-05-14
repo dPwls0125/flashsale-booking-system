@@ -9,8 +9,8 @@ export const options = {
       rate: 1000, // 초당 1000건 요청 (1000 TPS)
       timeUnit: '1s',
       duration: '3s',
-      preAllocatedVUs: 20,
-      maxVUs: 100,
+      preAllocatedVUs: 200,
+      maxVUs: 500,
     },
   },
 };
